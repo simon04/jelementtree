@@ -28,6 +28,42 @@ public class ElementPath {
 
 	private List<Operator> ops = new LinkedList<Operator>();
 	private PathType type;
+	/** @see <a href="http://www.w3.org/TR/REC-xml/#NT-NameStartChar">http://www.w3.org/TR/REC-xml/#NT-NameStartChar</a> */
+	private static String TAGPATTERN;
+
+	static {
+		StringBuilder patternFirst = new StringBuilder(1024).
+				append("[").
+				append(":").
+				append("[A-Z]").
+				append("_").
+				append("[a-z]").
+				append("[\\xC0-\\xD6]").
+				append("[\\xD8-\\xF6]").
+				append("[\\xF8-\\u02FF]").
+				append("[\\u0370-\\u037D]").
+				append("[\\u037F-\\u1FFF]").
+				append("[\\u200C-\\u200D]").
+				append("[\\u2070-\\u218F]").
+				append("[\\u2C00-\\u2FEF]").
+				append("[\\u3001-\\uD7FF]").
+				append("[\\uF900-\\uFDCF]").
+				append("[\\uFDF0-\\uFFFD]").
+				append("[\\u10000-\\uEFFFF]").
+				append("]");
+		
+		StringBuilder patternFollow = new StringBuilder(1024).
+				append("[").
+				append(patternFirst).
+				append("\\-").
+				append("\\.").
+				append("\\xB7").
+				append("[\\u0300-\\u036F]").
+				append("[\\u203F-\\u2040]").
+				append("]+");
+
+		TAGPATTERN = patternFirst.append(patternFollow).toString();
+	}
 
 	private interface Operator {
 
@@ -43,8 +79,7 @@ public class ElementPath {
 		type = xpath.startsWith("/") ? PathType.ROOT : (xpath.startsWith("\\.") ? PathType.ELEMENT : PathType.CHILDREN);
 		while (!xpath.isEmpty()) {
 			Matcher m;
-			if ((m = Pattern.compile("^/?\\.\\.").
-					matcher(xpath)).find()) {
+			if ((m = Pattern.compile("^/?\\.\\.").matcher(xpath)).find()) {
 				ops.add(new Operator() {
 
 					@Override
@@ -52,11 +87,9 @@ public class ElementPath {
 						return Arrays.asList(e.getParent());
 					}
 				});
-			} else if ((m = Pattern.compile("^/?\\.").
-					matcher(xpath)).find()) {
+			} else if ((m = Pattern.compile("^/?\\.").matcher(xpath)).find()) {
 				// do nothing
-			} else if ((m = Pattern.compile("^//").
-					matcher(xpath)).find()) {
+			} else if ((m = Pattern.compile("^//").matcher(xpath)).find()) {
 				ops.add(new Operator() {
 
 					@Override
@@ -69,44 +102,37 @@ public class ElementPath {
 						return result;
 					}
 				});
-			} else if ((m = Pattern.compile("^\\*").
-					matcher(xpath)).find()) {
+			} else if ((m = Pattern.compile("^\\*").matcher(xpath)).find()) {
 				// do nothing
-			} else if ((m = Pattern.compile("^(\\w+)").
-					matcher(xpath)).find()) {
+			} else if ((m = Pattern.compile("^(" + TAGPATTERN + "+)").matcher(xpath)).find()) {
 				final String tag = m.group(1);
 				ops.add(new Operator() {
 
 					@Override
 					public List<ElementTree> convert(ElementTree e) {
-						if (e.getTag().
-								equals(tag)) {
+						if (e.getTag().equals(tag)) {
 							return Arrays.asList(e);
 						} else {
 							return Arrays.asList();
 						}
 					}
 				});
-			} else if ((m = Pattern.compile("^\\[@(\\w+)(=('\\w+'))?\\]").
-					matcher(xpath)).find()) {
+			} else if ((m = Pattern.compile("^\\[@(" + TAGPATTERN + "+)(=('" + TAGPATTERN + "+'))?\\]").matcher(xpath)).find()) {
 				final String key = m.group(1);
-				final String value = m.group(3).
-						isEmpty() ? null : m.group(3);
+				final String value = m.group(3).isEmpty() ? null : m.group(3);
 				ops.add(new Operator() {
 
 					@Override
 					public List<ElementTree> convert(ElementTree e) {
 						if ((value == null && e.getAttribute(key) != null)
-								|| (value != null && e.getAttribute(key).
-								equals(value))) {
+								|| (value != null && e.getAttribute(key).equals(value))) {
 							return Arrays.asList(e);
 						} else {
 							return Arrays.asList();
 						}
 					}
 				});
-			} else if ((m = Pattern.compile("^\\[(\\w+)\\]").
-					matcher(xpath)).find()) {
+			} else if ((m = Pattern.compile("^\\[(" + TAGPATTERN + "+)\\]").matcher(xpath)).find()) {
 				final String tag = m.group(1);
 				ops.add(new Operator() {
 
@@ -114,8 +140,7 @@ public class ElementPath {
 					public List<ElementTree> convert(ElementTree e) {
 						boolean hasTag = false;
 						for (ElementTree j : e.getChildren()) {
-							if (j.getTag().
-									equals(tag)) {
+							if (j.getTag().equals(tag)) {
 								hasTag = true;
 								break;
 							}
@@ -127,8 +152,7 @@ public class ElementPath {
 						}
 					}
 				});
-			} else if ((m = Pattern.compile("^/").
-					matcher(xpath)).find()) {
+			} else if ((m = Pattern.compile("^/").matcher(xpath)).find()) {
 				ops.add(new Operator() {
 
 					@Override
